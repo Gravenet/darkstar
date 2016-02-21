@@ -92,6 +92,10 @@ time_point CBattlefield::getStartTime(){
 	return m_StartTime;
 }
 
+time_point CBattlefield::getWinTime(){
+	return m_WinTime;
+}
+
 time_point CBattlefield::getDeadTime(){
 	return m_AllDeadTime;
 }
@@ -343,9 +347,10 @@ void CBattlefield::addNpc(CBaseEntity* PNpc){
 bool CBattlefield::allEnemiesDefeated(){
 	bool allDefeated = true;
 	for(auto&& Condition : m_EnemyVictoryList){
-        if (Condition.MobEntity->PAI->IsCurrentState<CDeathState>()){
-            Condition.killed = true;
+		if (Condition.MobEntity->PAI->IsCurrentState<CDeathState>()) {
+			Condition.killed = true;
 		}
+
 		if(Condition.killed == false){
 			allDefeated = false;
 		}

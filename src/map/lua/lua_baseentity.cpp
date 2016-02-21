@@ -6066,6 +6066,64 @@ inline int32 CLuaBaseEntity::lowerEnmity(lua_State *L)
     return 0;
 }
 
+
+int32 CLuaBaseEntity::transferEnmity(lua_State* L)
+{
+    DSP_DEBUG_BREAK_IF(m_PBaseEntity == nullptr);
+
+    DSP_DEBUG_BREAK_IF(lua_isnil(L, 3) || !lua_isnumber(L, 3));
+    DSP_DEBUG_BREAK_IF(lua_isnil(L, 2) || !lua_isnumber(L, 2));
+    DSP_DEBUG_BREAK_IF(lua_tointeger(L, 2) < 0);
+
+    DSP_DEBUG_BREAK_IF(lua_isnil(L, 1) || !lua_isuserdata(L, 1));
+
+    auto PEntity = Lunar<CLuaBaseEntity>::check(L, 1)->m_PBaseEntity;
+    auto percent = lua_tointeger(L, 2);
+    auto range = lua_tonumber(L, 3);
+
+    auto PIterEntity = [&]() -> CCharEntity*
+    {
+        if (m_PBaseEntity->objtype == TYPE_PC)
+        {
+            return static_cast<CCharEntity*>(m_PBaseEntity);
+        }
+        else if (m_PBaseEntity->objtype == TYPE_PET)
+        {
+            auto PMaster = static_cast<CPetEntity*>(m_PBaseEntity)->PMaster;
+            if (PMaster->objtype == TYPE_PC)
+            {
+                return static_cast<CCharEntity*>(PMaster);
+            }
+        }
+        else if (PEntity->objtype == TYPE_PC)
+        {
+            return static_cast<CCharEntity*>(PEntity);
+        }
+        else if (PEntity->objtype == TYPE_PET)
+        {
+            auto PMaster = static_cast<CPetEntity*>(PEntity)->PMaster;
+            if (PMaster->objtype == TYPE_PC)
+            {
+                return static_cast<CCharEntity*>(PMaster);
+            }
+        }
+        return nullptr;
+    }();
+
+    if (PIterEntity)
+    {
+        for (auto&& mob_pair : PIterEntity->SpawnMOBList)
+        {
+            if (distance(mob_pair.second->loc.p, PEntity->loc.p) < range)
+            {
+                battleutils::TransferEnmity(static_cast<CBattleEntity*>(PEntity),
+                    static_cast<CBattleEntity*>(m_PBaseEntity),static_cast<CMobEntity*>(mob_pair.second), percent);
+            }
+        }
+    }
+    return 0;
+}
+
 /************************************************************************
     Check if the mob has immunity for this type of spell
     list at mobentity.h
@@ -6682,8 +6740,7 @@ inline int32 CLuaBaseEntity::getRACC(lua_State *L)
     if (skill > 200) { acc = 200 + (skill - 200)*0.9; }
     acc += PChar->getMod(MOD_RACC);
     acc += PChar->AGI() / 2;
-    acc = ((100 + PChar->getMod(MOD_RACCP)) * acc) / 100 +
-        dsp_min(((100 + PChar->getMod(MOD_FOOD_RACCP)) * acc) / 100, PChar->getMod(MOD_FOOD_RACC_CAP));
+    acc = acc + dsp_min(((100 + PChar->getMod(MOD_FOOD_RACCP)) * acc) / 100, PChar->getMod(MOD_FOOD_RACC_CAP));
 
     lua_pushinteger(L, acc);
     return 1;
@@ -8145,18 +8202,16 @@ inline int32 CLuaBaseEntity::checkDistance(lua_State *L)
     return 1;
 }
 
-inline int32 CLuaBaseEntity::checkBaseExp(lua_State *L)
+inline int32 CLuaBaseEntity::getBaseExp(lua_State *L)
 {
     DSP_DEBUG_BREAK_IF(m_PBaseEntity == nullptr);
     DSP_DEBUG_BREAK_IF(m_PBaseEntity->objtype != TYPE_MOB);
 
     CMobEntity* PMob = (CMobEntity*)m_PBaseEntity;
 
-    bool isbaseexp = false;
     uint32 baseexp = charutils::GetRealExp(PMob->m_HiPCLvl, PMob->GetMLevel());
-    if (baseexp != 0) isbaseexp = true;
 
-    lua_pushboolean(L, isbaseexp);
+    lua_pushinteger(L, baseexp);
     return 1;
 }
 
@@ -10512,6 +10567,7 @@ Lunar<CLuaBaseEntity>::Register_t CLuaBaseEntity::methods[] =
     LUNAR_DECLARE_METHOD(CLuaBaseEntity,updateClaim),
     LUNAR_DECLARE_METHOD(CLuaBaseEntity,resetEnmity),
     LUNAR_DECLARE_METHOD(CLuaBaseEntity,lowerEnmity),
+    LUNAR_DECLARE_METHOD(CLuaBaseEntity,transferEnmity),
     LUNAR_DECLARE_METHOD(CLuaBaseEntity,updateEnmityFromDamage),
     LUNAR_DECLARE_METHOD(CLuaBaseEntity,addEnmity),
     LUNAR_DECLARE_METHOD(CLuaBaseEntity,getEquipID),
@@ -10624,7 +10680,7 @@ Lunar<CLuaBaseEntity>::Register_t CLuaBaseEntity::methods[] =
     LUNAR_DECLARE_METHOD(CLuaBaseEntity,addPlayerToSpecialBattlefield),
     LUNAR_DECLARE_METHOD(CLuaBaseEntity,addTimeToSpecialBattlefield),
     LUNAR_DECLARE_METHOD(CLuaBaseEntity,checkDistance),
-    LUNAR_DECLARE_METHOD(CLuaBaseEntity,checkBaseExp),
+    LUNAR_DECLARE_METHOD(CLuaBaseEntity,getBaseExp),
     LUNAR_DECLARE_METHOD(CLuaBaseEntity,checkSoloPartyAlliance),
     LUNAR_DECLARE_METHOD(CLuaBaseEntity,checkExpPoints),
     LUNAR_DECLARE_METHOD(CLuaBaseEntity,checkFovAllianceAllowed),

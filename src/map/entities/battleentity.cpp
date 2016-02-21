@@ -471,6 +471,11 @@ int32 CBattleEntity::addHP(int32 hp)
         updatemask |= UPDATE_HP;
     }
 
+    if (health.hp == 0 && m_unkillable)
+    {
+        health.hp = 1;
+    }
+
     return abs(hp);
 }
 
@@ -557,6 +562,11 @@ uint16 CBattleEntity::ATT()
 
 uint16 CBattleEntity::RATT(uint8 skill, uint16 bonusSkill)
 {
+    auto PWeakness = StatusEffectContainer->GetStatusEffect(EFFECT_WEAKNESS);
+    if (PWeakness && PWeakness->GetPower() >= 2)
+    {
+        return 0;
+    }
     int32 ATT = 8 + GetSkill(skill) + bonusSkill + m_modStat[MOD_RATT] + battleutils::GetRangedAttackBonuses(this) + STR() / 2;
 
     if (this->objtype == TYPE_PET && ((CPetEntity*)this)->getPetType() == PETTYPE_AUTOMATON)
@@ -571,6 +581,11 @@ uint16 CBattleEntity::RATT(uint8 skill, uint16 bonusSkill)
 
 uint16 CBattleEntity::RACC(uint8 skill, uint16 bonusSkill)
 {
+    auto PWeakness = StatusEffectContainer->GetStatusEffect(EFFECT_WEAKNESS);
+    if (PWeakness && PWeakness->GetPower() >= 2)
+    {
+        return 0;
+    }
     int skill_level = GetSkill(skill) + bonusSkill;
     uint16 acc = skill_level;
     if (skill_level > 200)
@@ -585,8 +600,7 @@ uint16 CBattleEntity::RACC(uint8 skill, uint16 bonusSkill)
         acc += ((CCharEntity*)PMaster)->PMeritPoints->GetMeritValue(MERIT_FINE_TUNING, (CCharEntity*)PMaster);
     }
 
-    return ((100 + getMod(MOD_RACCP)) * acc) / 100 +
-        dsp_min(((100 + getMod(MOD_FOOD_RACCP)) * acc) / 100, getMod(MOD_FOOD_RACC_CAP));
+    return acc + dsp_min(((100 + getMod(MOD_FOOD_RACCP)) * acc) / 100, getMod(MOD_FOOD_RACC_CAP));
 }
 
 uint16 CBattleEntity::ACC(uint8 attackNumber, uint8 offsetAccuracy)
@@ -625,8 +639,7 @@ uint16 CBattleEntity::ACC(uint8 attackNumber, uint8 offsetAccuracy)
             ACC += DEX() * 0.5;
         }
         ACC = (ACC + m_modStat[MOD_ACC] + offsetAccuracy);
-        ACC = ACC + (ACC * m_modStat[MOD_ACCP] / 100) +
-            dsp_min((ACC * m_modStat[MOD_FOOD_ACCP] / 100), m_modStat[MOD_FOOD_ACC_CAP]);
+        ACC = ACC + dsp_min((ACC * m_modStat[MOD_FOOD_ACCP] / 100), m_modStat[MOD_FOOD_ACC_CAP]);
         return dsp_max(0, ACC);
     }
     else if (this->objtype == TYPE_PET && ((CPetEntity*)this)->getPetType() == PETTYPE_AUTOMATON)
@@ -635,15 +648,13 @@ uint16 CBattleEntity::ACC(uint8 attackNumber, uint8 offsetAccuracy)
         ACC = (ACC > 200 ? (((ACC - 200)*0.9) + 200) : ACC);
         ACC += DEX() * 0.5;
         ACC += m_modStat[MOD_ACC] + offsetAccuracy + ((CCharEntity*)PMaster)->PMeritPoints->GetMeritValue(MERIT_FINE_TUNING, (CCharEntity*)PMaster);
-        ACC = ACC + (ACC * m_modStat[MOD_ACCP] / 100) +
-            dsp_min((ACC * m_modStat[MOD_FOOD_ACCP] / 100), m_modStat[MOD_FOOD_ACC_CAP]);
+        ACC = ACC + dsp_min((ACC * m_modStat[MOD_FOOD_ACCP] / 100), m_modStat[MOD_FOOD_ACC_CAP]);
         return dsp_max(0, ACC);
     }
     else
     {
         int16 ACC = m_modStat[MOD_ACC];
-        ACC = ACC + (ACC * m_modStat[MOD_ACCP] / 100) +
-            dsp_min((ACC * m_modStat[MOD_FOOD_ACCP] / 100), m_modStat[MOD_FOOD_ACC_CAP]) + DEX() / 2; //food mods here for Snatch Morsel
+        ACC = ACC + dsp_min((ACC * m_modStat[MOD_FOOD_ACCP] / 100), m_modStat[MOD_FOOD_ACC_CAP]) + DEX() / 2; //food mods here for Snatch Morsel
         return dsp_max(0, ACC);
     }
 }
@@ -666,7 +677,7 @@ uint16 CBattleEntity::EVA()
     if (evasion > 200) { //Evasion skill is 0.9 evasion post-200
         evasion = 200 + (evasion - 200)*0.9;
     }
-    return dsp_max(0, (m_modStat[MOD_EVA] + evasion + AGI() / 2) * ((100 + m_modStat[MOD_EVAP]) / 100));
+    return dsp_max(0, (m_modStat[MOD_EVA] + evasion + AGI() / 2));
 }
 
 /************************************************************************
@@ -1073,7 +1084,7 @@ void CBattleEntity::delTrait(CTrait* PTrait)
     std::remove(TraitList.begin(), TraitList.end(), PTrait);
 }
 
-bool CBattleEntity::ValidTarget(CBattleEntity* PInitiator, uint8 targetFlags)
+bool CBattleEntity::ValidTarget(CBattleEntity* PInitiator, uint16 targetFlags)
 {
     if (targetFlags & TARGET_ENEMY)
     {
@@ -1560,7 +1571,7 @@ bool CBattleEntity::OnAttack(CAttackState& state, action_t& action)
 }
 
 
-CBattleEntity* CBattleEntity::IsValidTarget(uint16 targid, uint8 validTargetFlags, std::unique_ptr<CMessageBasicPacket>& errMsg)
+CBattleEntity* CBattleEntity::IsValidTarget(uint16 targid, uint16 validTargetFlags, std::unique_ptr<CMessageBasicPacket>& errMsg)
 {
     auto PTarget = PAI->TargetFind->getValidTarget(targid, validTargetFlags);
 
